@@ -1,5 +1,6 @@
 const grpc = require('@grpc/grpc-js');
 const protoLoader = require('@grpc/proto-loader');
+const fs = require('fs');
 
 const packageDefinition = protoLoader.loadSync('../protos/greet.proto',
     {
@@ -14,8 +15,19 @@ const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
 const greetPackage = protoDescriptor.greet;
 
 function main() {
+
+    const credentials = grpc.ServerCredentials.createSsl(
+        fs.readFileSync('../certs/ca.crt'),
+        [{
+            cert_chain: fs.readFileSync('../certs/server.crt'),
+            private_key: fs.readFileSync('../certs/server.key')
+        }],
+        true
+    );
+
+    const unsafeCreds = grpc.credentials.createInsecure();
     const server = new grpc.Server();
-    server.bindAsync("127.0.0.1:40000", grpc.ServerCredentials.createInsecure(), (error, port) => {
+    server.bindAsync("localhost:40000", credentials, (error, port) => {
         if (error) {
             console.log(error);
         }
@@ -77,8 +89,10 @@ function greet({ request }, callback) {
 
     const { greet } = request;
 
+    console.log(greet);
+
     const greeting = {
-        result: ` hello  + ${greet.firstName} ${greet.lastName}`
+        result: ` hello  + ${greet.first_name} ${greet.last_name}`
     }
 
     callback(null, greeting);
@@ -129,18 +143,19 @@ function longGreet(call, callback) {
 
 }
 
-function squareRoot({ request }, callback) {
+async function squareRoot({ request }, callback) {
     const { number } = request;
+    await sleep(1000);
 
     if (number >= 0) {
         const numberRoot = Math.sqrt(number);
         const response = { number_root: numberRoot };
 
         callback(null, response);
-    }else{
+    } else {
         return callback({
-            code:grpc.status.INVALID_ARGUMENT,
-            message:' The number being sent is not positive ' + ' Number sent '+number
+            code: grpc.status.INVALID_ARGUMENT,
+            message: ' The number being sent is not positive ' + ' Number sent ' + number
         })
     }
 
